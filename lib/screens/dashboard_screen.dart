@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/database_service.dart';
 import 'scanner_screen.dart';
+import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ApiService apiService;
@@ -109,10 +110,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           backgroundColor: Colors.white,
           elevation: 0,
           title: const Text('Panel de Control', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-          actions: [
+          actions: [ // CERRAR SESION
             IconButton(
               icon: const Icon(Icons.exit_to_app, color: Colors.redAccent),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                // 1. Limpia las variables temporales por seguridad
+                widget.apiService.token = null;
+                widget.apiService.inventarioSeleccionado = null;
+                widget.apiService.inventariosAsignados = [];
+                widget.apiService.nombreUsuario = '';
+
+                // 2. Redirige al Login eliminando toda ruta previa
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginScreen()), // Asegúrate de que el nombre coincida con tu clase
+                  (Route<dynamic> route) => false, // Al devolver false, mata toda la pila de navegación
+                );
+              },
             )
           ],
           bottom: const TabBar(
@@ -146,7 +160,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Sucursal: ${widget.sucursal}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.teal)),
-                          Text('Operario(a): SuperAdmin | N° Local: 1', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
+                          Text(
+                            'Operario(a): ${widget.apiService.nombreUsuario} | N° Local: ${widget.apiService.inventarioSeleccionado!['codLocal']}',
+                            style: TextStyle(color: Colors.teal.shade700),
+                          )
                         ],
                       ),
                     ),

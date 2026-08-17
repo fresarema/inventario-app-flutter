@@ -3,15 +3,22 @@ import 'package:http/http.dart' as http;
 import '../models/producto.dart';
 
 class ApiService {
-  // IP del emulador de android
   final String baseUrl = 'http://10.0.2.2:8000/api';
   String? token;
+  
+  // Variables dinámicas asignadas por el servidor
+  String? sucursalAsignada;
+  int? idInventarioActivo;
+  List<dynamic> inventariosAsignados = [];
+  Map<String, dynamic>? inventarioSeleccionado;
+  String nombreUsuario = '';
 
-  // 1. Iniciar sesión y guardar el token
-  Future<bool> login(String email, String password) async {
+  // 1. Iniciar sesión y validar inventario activo estricto
+  Future<Map<String, dynamic>> loginYValidar(String email, String password) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/login'),
+        headers: {'Accept': 'application/json'},
         body: {
           'email': email,
           'password': password,
@@ -20,13 +27,27 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        token = data['token']; // Guarda el token en memoria
-        return true;
+        token = data['token']; 
+        nombreUsuario = data['usuario'] ?? 'Operario';
+        
+        List<dynamic> inventarios = data['inventarios_activos'] ?? [];
+
+        if (inventarios.isNotEmpty) {
+          inventariosAsignados = inventarios;
+          // Preselecciona el primer inventario de la lista por defecto
+          inventarioSeleccionado = inventarios.first;
+          return {'success': true, 'mensaje': 'Inventarios encontrados'};
+        } else {
+          // Bloqueo total si no tiene nada asignado
+          return {'success': false, 'mensaje': 'No tiene inventarios activos asignados en este momento.'};
+        }
+      } else if (response.statusCode == 401) {
+         return {'success': false, 'mensaje': 'Credenciales incorrectas'};
       }
-      return false;
+      return {'success': false, 'mensaje': 'Error del servidor'};
     } catch (e) {
       print('Error en login: $e');
-      return false;
+      return {'success': false, 'mensaje': 'Sin conexión con el servidor'};
     }
   }
 
@@ -46,29 +67,27 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final List<dynamic> productosJson = data['data'];
-        
-        // Convierte el JSON masivo a una lista de objetos Producto
         return productosJson.map((json) => Producto.fromJson(json)).toList();
       } else {
         throw Exception('Error al descargar productos');
       }
     } catch (e) {
       print('Error de red: $e');
-      throw Exception('Fallo la conexión con el servidor');
+      throw Exception('Falló la conexión con el servidor');
     }
   }
 
-  // Función para subir los conteos al servidor
+  // 3. Sincronizar (Solo conteo físico)
   Future<bool> sincronizarMetro(String metro, List<Map<String, dynamic>> registros) async {
     if (token == null) return false;
 
     try {
-      // Formatea la lista tal como la espera el validador de Laravel
+      // Mapeo estricto: la app no procesa el stock teórico, solo envía lo contado
       List<Map<String, dynamic>> conteosParaApi = registros.map((item) {
         final prod = item['producto'] as Producto;
         return {
           'codigo': prod.codigo,
-          'cantidad': item['cantidad'],
+          'cantidad': item['cantidad'], // Solo cantidad física
         };
       }).toList();
 
@@ -77,13 +96,16 @@ class ApiService {
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
-          'Content-Type': 'application/json', // Informa a Laravel que enviamos un JSON
+          'Content-Type': 'application/json', 
         },
         body: jsonEncode({
-          'metro': metro, // Envia el metro pensando en el futuro panel web
+          'inventario_id': inventarioSeleccionado!['id'], // Asegura que se envía al proceso correcto
+          'metro': metro, 
           'conteos': conteosParaApi,
         }),
       );
+      print('STATUS CODE SINCRONIZACIÓN: ${response.statusCode}');
+      print('RESPUESTA SERVIDOR: ${response.body}');
 
       return response.statusCode == 200;
     } catch (e) {
