@@ -78,7 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     try {
 
-      final url = Uri.parse('http://10.0.2.2:8000/api';); 
+      final url = Uri.parse('${widget.apiService.baseUrl}/validar-metro'); 
 
       final response = await http.post(
         url,
@@ -92,6 +92,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'numero_metro': numeroMetro,
         }),
       );
+      print('STATUS VALIDACIÓN: ${response.statusCode}');
+      print('RESPUESTA LARAVEL: ${response.body}');
 
       final responseData = jsonDecode(response.body);
 

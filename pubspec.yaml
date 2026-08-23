@@ -37,6 +37,7 @@ dependencies:
   http: ^1.6.0
   sqflite: ^2.4.3
   path_provider: ^2.1.6
+  mobile_scanner: ^7.4.0
 
 dev_dependencies:
   flutter_test:

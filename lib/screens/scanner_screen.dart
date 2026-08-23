@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import '../models/producto.dart';
 import '../services/database_service.dart';
 import '../services/api_service.dart';
@@ -7,7 +8,11 @@ class ScannerScreen extends StatefulWidget {
   final String numeroMetro;
   final ApiService apiService;
 
-  const ScannerScreen({super.key, required this.numeroMetro, required this.apiService,});
+  const ScannerScreen({
+    super.key,
+    required this.numeroMetro,
+    required this.apiService,
+  });
 
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
@@ -16,10 +21,26 @@ class ScannerScreen extends StatefulWidget {
 class _ScannerScreenState extends State<ScannerScreen> {
   final List<Map<String, dynamic>> _productosEscaneados = [];
   final DatabaseService _dbService = DatabaseService();
+  
+  // Controlador de la cámara
+  final MobileScannerController _scannerController = MobileScannerController();
+  
+  // Bandera para evitar que escanee 100 veces el mismo código en un segundo
+  bool _isProcessingScan = false;
 
-  // Modal 1: Ingreso Manual (Imagen 4)
+  @override
+  void dispose() {
+    // Apaga la cámara al salir de la pantalla para liberar memoria
+    _scannerController.dispose();
+    super.dispose();
+  }
+
+  // Modal 1: Ingreso Manual
   void _mostrarModalIngresoManual() {
     final TextEditingController codigoController = TextEditingController();
+    
+    // Pausa la cámara mientras digita
+    _scannerController.stop();
 
     showDialog(
       context: context,
@@ -50,7 +71,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(context);
+              _scannerController.start(); // Reactivar cámara al cancelar
+            },
             child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
@@ -67,12 +91,19 @@ class _ScannerScreenState extends State<ScannerScreen> {
           ),
         ],
       ),
-    );
+    ).then((_) {
+      // Por si el usuario descarta el modal tocando fuera de él
+      _scannerController.start();
+    });
   }
 
   // Lógica de búsqueda en SQLite
   void _buscarProducto(String codigo) async {
-    if (codigo.isEmpty) return;
+    if (codigo.isEmpty) {
+      _isProcessingScan = false;
+      _scannerController.start();
+      return;
+    }
 
     final producto = await _dbService.buscarProducto(codigo);
 
@@ -80,17 +111,29 @@ class _ScannerScreenState extends State<ScannerScreen> {
       _mostrarModalCantidad(producto);
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Producto no encontrado en la base local'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Producto no encontrado en la base local'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
       );
+      // Un delay entre escaneos
+      await Future.delayed(const Duration(seconds: 2));
+      _isProcessingScan = false;
+      _scannerController.start();
     }
   }
 
-  // Modal 2: Control de Inventario / Cantidad (Imagen 5)
+  // Modal 2: Control de Inventario / Cantidad
   void _mostrarModalCantidad(Producto producto) {
     final TextEditingController cantidadController = TextEditingController();
+    
+    // Asegura que la cámara esté pausada
+    _scannerController.stop();
 
     showDialog(
       context: context,
+      barrierDismissible: false, // Evita cerrar tocando fuera para no perder el hilo
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Control de Inventario', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -122,6 +165,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
             TextField(
               controller: cantidadController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true, // Abre el teclado automáticamente
               decoration: InputDecoration(
                 hintText: 'Ingresa cantidad (ej: 1.5)',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -130,29 +174,50 @@ class _ScannerScreenState extends State<ScannerScreen> {
           ],
         ),
         actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                if (cantidadController.text.isNotEmpty) {
-                  setState(() {
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _isProcessingScan = false;
+              _scannerController.start();
+            },
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (cantidadController.text.isNotEmpty) {
+                double nuevaCantidad = double.parse(cantidadController.text);
+                String horaActual = "${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}:${DateTime.now().second.toString().padLeft(2, '0')}";
+
+                setState(() {
+                  // LÓGICA DE ACUMULACIÓN: Busca si el producto ya fue escaneado antes
+                  int indexExistente = _productosEscaneados.indexWhere(
+                      (item) => (item['producto'] as Producto).codigo == producto.codigo);
+
+                  if (indexExistente != -1) {
+                    // Si existe, suma la cantidad a la que ya estaba
+                    _productosEscaneados[indexExistente]['cantidad'] += nuevaCantidad;
+                    _productosEscaneados[indexExistente]['hora'] = horaActual;
+                  } else {
+                    // Si es nuevo en este pasillo, se agrega a la lista
                     _productosEscaneados.add({
                       'producto': producto,
-                      'cantidad': double.parse(cantidadController.text),
-                      'hora': "${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}:${DateTime.now().second.toString().padLeft(2, '0')}"
+                      'cantidad': nuevaCantidad,
+                      'hora': horaActual
                     });
-                  });
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Agregar al Inventario'),
+                  }
+                });
+                
+                Navigator.pop(context);
+                _isProcessingScan = false;
+                _scannerController.start(); // Reactiva cámara para el siguiente producto
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
+            child: const Text('Agregar'),
           ),
         ],
       ),
@@ -161,9 +226,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   // Modal 3: Sincronizar Metro 
   void _mostrarModalSincronizar() {
+    _scannerController.stop(); // Pausa por precaución
+    
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog( 
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
@@ -177,12 +244,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext), 
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _scannerController.start();
+            },
             child: const Text('Revisar Más', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(dialogContext); 
+              Navigator.pop(dialogContext);
 
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Sincronizando con el servidor...')),
@@ -191,16 +261,19 @@ class _ScannerScreenState extends State<ScannerScreen> {
               bool exito = await widget.apiService.sincronizarMetro(widget.numeroMetro, _productosEscaneados);
 
               if (exito && mounted) {
-                setState(() { _productosEscaneados.clear(); });
+                setState(() {
+                  _productosEscaneados.clear();
+                });
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('¡Metro sincronizado con éxito!'), backgroundColor: Colors.green),
                 );
                 await Future.delayed(const Duration(milliseconds: 1500));
-                if (mounted) Navigator.pop(context); 
+                if (mounted) Navigator.pop(context); // Volver al dashboard
               } else if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Error al guardar. Revisa el servidor.'), backgroundColor: Colors.red),
                 );
+                _scannerController.start();
               }
             },
             style: ElevatedButton.styleFrom(
@@ -231,39 +304,55 @@ class _ScannerScreenState extends State<ScannerScreen> {
       ),
       body: Column(
         children: [
-          // Zona superior oscura del escáner
-          Container(
+          // ZONA DE CÁMARA REAL
+          SizedBox(
+            height: 250, // Altura fija para el visor
             width: double.infinity,
-            color: const Color(0xFF1E293B),
-            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-            child: Column(
+            child: Stack(
               children: [
-                Align(
-                  alignment: Alignment.topLeft,
+                MobileScanner(
+                  controller: _scannerController,
+                  onDetect: (capture) {
+                    // Si ya esta procesando un código, ignora las nuevas lecturas
+                    if (_isProcessingScan) return;
+
+                    final List<Barcode> barcodes = capture.barcodes;
+                    for (final barcode in barcodes) {
+                      if (barcode.rawValue != null) {
+                        final String code = barcode.rawValue!;
+                        
+                        setState(() {
+                          _isProcessingScan = true;
+                        });
+                        
+                        _scannerController.stop(); // Detiene la cámara
+                        _buscarProducto(code); // Lanza la búsqueda
+                        break; // Procesa solo un código a la vez
+                      }
+                    }
+                  },
+                ),
+                
+                // Botón de ingreso manual superpuesto sobre la cámara
+                Positioned(
+                  top: 16,
+                  right: 16,
                   child: Container(
-                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
                     child: IconButton(
                       icon: const Icon(Icons.keyboard, color: Colors.white),
                       onPressed: _mostrarModalIngresoManual,
+                      tooltip: 'Ingreso Manual',
                     ),
                   ),
                 ),
-                const Icon(Icons.image, color: Colors.white24, size: 80),
-                const SizedBox(height: 16),
-                const Text('Escáner en espera...', style: TextStyle(color: Colors.white70)),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    // Simular escaneo de prueba
-                    _buscarProducto("9584898518720"); // Reemplaza esto con un código que sepas que existe en tu BD
-                  },
-                  icon: const Icon(Icons.qr_code_scanner),
-                  label: const Text('PRESIONE PARA ESCANEAR'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                
+                // Línea roja simulada para apuntar (Opcional, mejora la UX)
+                Center(
+                  child: Container(
+                    width: 200,
+                    height: 2,
+                    color: Colors.red.withOpacity(0.5),
                   ),
                 ),
               ],
@@ -300,7 +389,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   ),
           ),
           
-          // Botón inferior para guardar/sincronizar (solo visible si hay productos)
+          // Botón inferior para guardar/sincronizar
           if (_productosEscaneados.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(16),
