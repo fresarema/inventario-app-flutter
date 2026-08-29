@@ -38,58 +38,87 @@ class _ScannerScreenState extends State<ScannerScreen> {
   // Modal 1: Ingreso Manual
   void _mostrarModalIngresoManual() {
     final TextEditingController codigoController = TextEditingController();
+    bool esPesable = false; // Variable local para controlar el estado del Checkbox
     
     // Pausa la cámara mientras digita
     _scannerController.stop();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.keyboard, color: Colors.blue),
-            SizedBox(width: 8),
-            Text('Ingreso Manual', style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Digita el código de barras o SKU:'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: codigoController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText: 'Ej: 780123456789',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      builder: (context) => StatefulBuilder( // StatefulBuilder permite redibujar el contenido interno del modal
+        builder: (context, setStateModal) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.keyboard, color: Colors.blue),
+                SizedBox(width: 8),
+                Text('Ingreso Manual', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Digita el código de barras o SKU:'),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: codigoController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: 'Ej: 780123456789',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                
+                // Checkbox para productos de balanza
+                CheckboxListTile(
+                  title: const Text('Es producto pesable (Balanza)'),
+                  subtitle: const Text('Añade los ceros automáticamente'),
+                  value: esPesable,
+                  activeColor: Colors.blue,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  onChanged: (bool? valor) {
+                    setStateModal(() {
+                      esPesable = valor ?? false; // Actualiza el estado solo dentro del modal
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _scannerController.start(); // Reactivar cámara al cancelar
+                },
+                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _scannerController.start(); // Reactivar cámara al cancelar
-            },
-            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _buscarProducto(codigoController.text.trim());
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Buscar'),
-          ),
-        ],
+              ElevatedButton(
+                onPressed: () {
+                  String codigoFinal = codigoController.text.trim();
+
+                  // Lógica de autocompletado si el checkbox está marcado
+                  if (esPesable && codigoFinal.length == 6 && codigoFinal.startsWith('2')) {
+                    codigoFinal += '0000000'; 
+                  }
+
+                  Navigator.pop(context);
+                  // Envia el código (modificado o no) a la función de búsqueda original
+                  _buscarProducto(codigoFinal); 
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text('Buscar'),
+              ),
+            ],
+          );
+        }
       ),
     ).then((_) {
       // Por si el usuario descarta el modal tocando fuera de él
