@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http; 
 import '../services/api_service.dart';
 import '../services/database_service.dart';
+import '../models/producto.dart';
 import 'scanner_screen.dart';
 import 'login_screen.dart';
 
@@ -26,6 +27,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
   
   // Controla el estado del botón mientras consulta la API
   bool _isValidating = false; 
+
+  List<String> _metrosPendientes = [];
+  bool _isSyncingMaster = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarMetrosPendientes();
+  }
+
+  void _cargarMetrosPendientes() async {
+    final conteos = await DatabaseService().obtenerConteosPendientes();
+    // Extrae los nombres únicos de los metros pendientes
+    final metros = conteos.map((c) => c['metro'].toString()).toSet().toList();
+    setState(() {
+      _metrosPendientes = metros;
+    });
+  }
+
+  // Nueva función maestra que recorre los pasillos guardados y los envía
+  void _sincronizarTodo() async {
+    setState(() { _isSyncingMaster = true; });
+    final todosLosConteos = await DatabaseService().obtenerConteosPendientes();
+    
+    for(String metro in _metrosPendientes) {
+      final dataDelMetro = todosLosConteos.where((c) => c['metro'] == metro).toList();
+      
+      // Adapta la estructura para engañar a ApiService sin tener que modificarlo
+      List<Map<String, dynamic>> payload = dataDelMetro.map((c) => {
+        'producto': Producto(codigo: c['codigo'].toString(), descripcion: ''),
+        'cantidad': c['cantidad']
+      }).toList();
+
+      bool exito = await widget.apiService.sincronizarMetro(metro, payload);
+      
+      if (exito) {
+        await DatabaseService().limpiarMetroSincronizado(metro);
+      }
+    }
+    
+    _cargarMetrosPendientes();
+    setState(() { _isSyncingMaster = false; });
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sincronización masiva completada.'), backgroundColor: Colors.blue),
+      );
+    }
+  }
 
   void _descargarCatalogo() async {
     setState(() {
@@ -170,6 +220,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               );
 
               if (mounted) {
+                _cargarMetrosPendientes();
                 _metroController.clear();
                 FocusScope.of(context).unfocus();
               }
@@ -319,6 +370,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ),
+
+              const SizedBox(height: 32),
+              
+              // SECCIÓN OFFLINE FIRST
+              if (_metrosPendientes.isNotEmpty) ...[
+                const Divider(),
+                const SizedBox(height: 16),
+                const Text('Conteos Pendientes por Sincronizar:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                const SizedBox(height: 12),
+                
+                // Dibuja los recuadros de los metros
+                ..._metrosPendientes.map((metro) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Conteo Metro $metro', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const Icon(Icons.offline_pin, color: Colors.orange, size: 20),
+                    ],
+                  ),
+                )),
+                
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSyncingMaster ? null : _sincronizarTodo,
+                    icon: _isSyncingMaster 
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.cloud_upload_outlined),
+                    label: Text(_isSyncingMaster ? 'Enviando...' : 'Registrar Lista de Conteos', style: const TextStyle(fontSize: 16)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+              ]
             ],
           ),
         ),

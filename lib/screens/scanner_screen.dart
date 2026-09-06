@@ -284,25 +284,23 @@ class _ScannerScreenState extends State<ScannerScreen> {
               Navigator.pop(dialogContext);
 
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sincronizando con el servidor...')),
+                const SnackBar(content: Text('Guardando en memoria local...')),
               );
 
-              bool exito = await widget.apiService.sincronizarMetro(widget.numeroMetro, _productosEscaneados);
+              // 1. Llama a la nueva función local de SQLite
+              await _dbService.guardarMetroOffline(widget.numeroMetro, _productosEscaneados);
 
-              if (exito && mounted) {
+              if (mounted) {
                 setState(() {
                   _productosEscaneados.clear();
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('¡Metro sincronizado con éxito!'), backgroundColor: Colors.green),
+                  const SnackBar(content: Text('¡Guardado offline con éxito!'), backgroundColor: Colors.green),
                 );
-                await Future.delayed(const Duration(milliseconds: 1500));
-                if (mounted) Navigator.pop(context); // Volver al dashboard
-              } else if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Error al guardar. Revisa el servidor.'), backgroundColor: Colors.red),
-                );
-                _scannerController.start();
+                await Future.delayed(const Duration(milliseconds: 1000));
+                
+                // 2. Cierra la pantalla y vuelve al Dashboard
+                if (mounted) Navigator.pop(context); 
               }
             },
             style: ElevatedButton.styleFrom(
@@ -310,7 +308,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Confirmar y Enviar'),
+            child: const Text('Guardar Toma Localmente'),
           ),
         ],
       ),

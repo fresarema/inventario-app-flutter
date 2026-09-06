@@ -37,7 +37,6 @@ class DatabaseService {
 
   // Creación de las tablas la primera vez que se instala la app
   Future<void> _onCreate(Database db, int version) async {
-    // 1. Tabla espejo del catálogo maestro (SQL Server)
     await db.execute('''
       CREATE TABLE productos(
         codigo TEXT PRIMARY KEY,
@@ -45,16 +44,16 @@ class DatabaseService {
       )
     ''');
 
-    // 2. Tabla temporal para el trabajo offline en bodega
+    // Agregamos la columna 'metro' para agrupar los escaneos
     await db.execute('''
       CREATE TABLE conteos_pendientes(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        metro TEXT,
         codigo TEXT,
         cantidad REAL
       )
     ''');
   }
-
   // Inserta miles de productos en un solo movimiento bloqueando la BD brevemente
   Future<void> insertarProductosMasivo(List<Producto> productos) async {
     final db = await database;
@@ -93,6 +92,34 @@ class DatabaseService {
       return Producto.fromJson(mapas.first);
     }
     return null;
+  }
+
+  // Guarda todos los escaneos de un pasillo en la memoria local
+  Future<void> guardarMetroOffline(String metro, List<Map<String, dynamic>> escaneos) async {
+    final db = await database;
+    Batch batch = db.batch();
+    
+    for (var item in escaneos) {
+      final prod = item['producto'] as Producto;
+      batch.insert('conteos_pendientes', {
+        'metro': metro,
+        'codigo': prod.codigo,
+        'cantidad': item['cantidad']
+      });
+    }
+    await batch.commit(noResult: true);
+  }
+
+  // Recupera todos los datos guardados sin conexión
+  Future<List<Map<String, dynamic>>> obtenerConteosPendientes() async {
+    final db = await database;
+    return await db.query('conteos_pendientes');
+  }
+
+  // Borra únicamente el metro que ya se envió con éxito al servidor
+  Future<void> limpiarMetroSincronizado(String metro) async {
+    final db = await database;
+    await db.delete('conteos_pendientes', where: 'metro = ?', whereArgs: [metro]);
   }
 
 
