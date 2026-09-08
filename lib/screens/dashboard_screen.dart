@@ -6,6 +6,7 @@ import '../services/database_service.dart';
 import '../models/producto.dart';
 import 'scanner_screen.dart';
 import 'login_screen.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ApiService apiService;
@@ -46,15 +47,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  // Nueva función maestra que recorre los pasillos guardados y los envía
+  // Nueva función maestra con validación de red exclusiva para Wi-Fi
   void _sincronizarTodo() async {
+    // 1. VALIDACIÓN DE RED: Bloqueo de datos móviles
+    final List<ConnectivityResult> connectivityResult = await (Connectivity().checkConnectivity());
+    
+    if (!connectivityResult.contains(ConnectivityResult.wifi)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Sincronización bloqueada. Por favor, conéctese a la red Wi-Fi del supermercado (Datos móviles no permitidos).'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+      return; // Detiene la función aquí mismo, no envía nada
+    }
+
+    // Si pasa la validación, continúa con la lógica original
     setState(() { _isSyncingMaster = true; });
     final todosLosConteos = await DatabaseService().obtenerConteosPendientes();
     
     for(String metro in _metrosPendientes) {
       final dataDelMetro = todosLosConteos.where((c) => c['metro'] == metro).toList();
       
-      // Adapta la estructura para engañar a ApiService sin tener que modificarlo
       List<Map<String, dynamic>> payload = dataDelMetro.map((c) => {
         'producto': Producto(codigo: c['codigo'].toString(), descripcion: ''),
         'cantidad': c['cantidad']
