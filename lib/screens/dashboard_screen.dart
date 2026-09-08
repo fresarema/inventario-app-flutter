@@ -47,7 +47,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  // Nueva función maestra con validación de red exclusiva para Wi-Fi
+  Future<bool> _verificarLatencia() async {
+    try {
+      // Usa un endpoint ligero (ej. la raíz de la API o uno específico)
+      final url = Uri.parse('${widget.apiService.baseUrl}/ping'); 
+      
+      // Fuerza un timeout de 2 segundos. Si demora más, arrojará un error.
+      final response = await http.get(url, headers: {
+        'Accept': 'application/json',
+      }).timeout(const Duration(seconds: 2));
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      // Si hay un TimeoutException o el servidor no responde, la red es inestable
+      return false; 
+    }
+  }
+
   void _sincronizarTodo() async {
     // 1. VALIDACIÓN DE RED: Bloqueo de datos móviles
     final List<ConnectivityResult> connectivityResult = await (Connectivity().checkConnectivity());
@@ -56,17 +72,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('⚠️ Sincronización bloqueada. Por favor, conéctese a la red Wi-Fi del supermercado (Datos móviles no permitidos).'),
+            content: Text('⚠️ Conéctese a la red Wi-Fi del supermercado (Datos móviles bloqueados).'),
             backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return; 
+    }
+
+    setState(() { _isSyncingMaster = true; }); // Inicia el loader
+
+    // 2. PRUEBA DE LATENCIA: Verificar calidad de la señal
+    bool redEstable = await _verificarLatencia();
+    
+    if (!redEstable) {
+      setState(() { _isSyncingMaster = false; });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Señal inestable o muy débil. Acércate más al router antes de sincronizar.'),
+            backgroundColor: Colors.orange,
             duration: Duration(seconds: 4),
           ),
         );
       }
-      return; // Detiene la función aquí mismo, no envía nada
+      return; // Detenemos el envío para proteger los datos
     }
 
-    // Si pasa la validación, continúa con la lógica original
-    setState(() { _isSyncingMaster = true; });
+    // 3. FLUJO ORIGINAL: Si todo está bien, envía los datos
     final todosLosConteos = await DatabaseService().obtenerConteosPendientes();
     
     for(String metro in _metrosPendientes) {
