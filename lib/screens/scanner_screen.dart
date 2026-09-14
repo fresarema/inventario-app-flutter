@@ -64,7 +64,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: codigoController,
-                  keyboardType: TextInputType.number,
+                  keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
                   decoration: InputDecoration(
                     hintText: 'Ej: 780123456789',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -193,7 +193,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
             const SizedBox(height: 8),
             TextField(
               controller: cantidadController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: true),
               autofocus: true, // Abre el teclado automáticamente
               decoration: InputDecoration(
                 hintText: 'Ingresa cantidad (ej: 1.5)',
@@ -213,32 +213,39 @@ class _ScannerScreenState extends State<ScannerScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              if (cantidadController.text.isNotEmpty) {
-                double nuevaCantidad = double.parse(cantidadController.text);
-                String horaActual = "${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}:${DateTime.now().second.toString().padLeft(2, '0')}";
+              // Sanitización del input: quita espacios y cambia coma por punto
+              String textoLimpio = cantidadController.text.trim().replaceAll(',', '.');
 
-                setState(() {
-                  // LÓGICA DE ACUMULACIÓN: Busca si el producto ya fue escaneado antes
-                  int indexExistente = _productosEscaneados.indexWhere(
-                      (item) => (item['producto'] as Producto).codigo == producto.codigo);
+              if (textoLimpio.isNotEmpty) {
+                try {
+                  double nuevaCantidad = double.parse(textoLimpio);
+                  String horaActual = "${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}:${DateTime.now().second.toString().padLeft(2, '0')}";
 
-                  if (indexExistente != -1) {
-                    // Si existe, suma la cantidad a la que ya estaba
-                    _productosEscaneados[indexExistente]['cantidad'] += nuevaCantidad;
-                    _productosEscaneados[indexExistente]['hora'] = horaActual;
-                  } else {
-                    // Si es nuevo en este pasillo, se agrega a la lista
-                    _productosEscaneados.add({
-                      'producto': producto,
-                      'cantidad': nuevaCantidad,
-                      'hora': horaActual
-                    });
-                  }
-                });
-                
-                Navigator.pop(context);
-                _isProcessingScan = false;
-                _scannerController.start(); // Reactiva cámara para el siguiente producto
+                  setState(() {
+                    int indexExistente = _productosEscaneados.indexWhere(
+                        (item) => (item['producto'] as Producto).codigo == producto.codigo);
+
+                    if (indexExistente != -1) {
+                      _productosEscaneados[indexExistente]['cantidad'] += nuevaCantidad;
+                      _productosEscaneados[indexExistente]['hora'] = horaActual;
+                    } else {
+                      _productosEscaneados.add({
+                        'producto': producto,
+                        'cantidad': nuevaCantidad,
+                        'hora': horaActual
+                      });
+                    }
+                  });
+
+                  Navigator.pop(context);
+                  _isProcessingScan = false;
+                  _scannerController.start(); 
+                } catch (e) {
+                  // Manejo silencioso si el usuario logra meter un texto inválido
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Cantidad no válida'), backgroundColor: Colors.red),
+                  );
+                }
               }
             },
             style: ElevatedButton.styleFrom(
