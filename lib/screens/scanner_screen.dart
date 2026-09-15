@@ -41,6 +41,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     bool esPesable = false; // Variable local para controlar el estado del Checkbox
     
     // Pausa la cámara mientras digita
+    setState(() { _isProcessingScan = true; });
     _scannerController.stop();
 
     showDialog(
@@ -56,37 +57,39 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 Text('Ingreso Manual', style: TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Digita el código de barras o SKU:'),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: codigoController,
-                  keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
-                  decoration: InputDecoration(
-                    hintText: 'Ej: 780123456789',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Digita el código de barras o SKU:'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: codigoController,
+                    keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false),
+                    decoration: InputDecoration(
+                      hintText: 'Ej: 780123456789',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                
-                // Checkbox para productos de balanza
-                CheckboxListTile(
-                  title: const Text('Es producto pesable (Balanza)'),
-                  subtitle: const Text('Añade los ceros automáticamente'),
-                  value: esPesable,
-                  activeColor: Colors.blue,
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  onChanged: (bool? valor) {
-                    setStateModal(() {
-                      esPesable = valor ?? false; // Actualiza el estado solo dentro del modal
-                    });
-                  },
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  
+                  // Checkbox para productos de balanza
+                  CheckboxListTile(
+                    title: const Text('Es producto pesable (Balanza)'),
+                    subtitle: const Text('Añade los ceros automáticamente'),
+                    value: esPesable,
+                    activeColor: Colors.blue,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    onChanged: (bool? valor) {
+                      setStateModal(() {
+                        esPesable = valor ?? false; // Actualiza el estado solo dentro del modal
+                      });
+                    },
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -122,6 +125,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       ),
     ).then((_) {
       // Por si el usuario descarta el modal tocando fuera de él
+      setState(() { _isProcessingScan = false; });
       _scannerController.start();
     });
   }
@@ -166,41 +170,43 @@ class _ScannerScreenState extends State<ScannerScreen> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Control de Inventario', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Código SKU: ${producto.codigo}', style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Código SKU: ${producto.codigo}', style: const TextStyle(color: Colors.grey)),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(producto.descripcion, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey)),
+                    const SizedBox(height: 4),
+                    const Text('Formato: Unidad', style: TextStyle(color: Colors.blue, fontSize: 12)),
+                  ],
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(producto.descripcion, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey)),
-                  const SizedBox(height: 4),
-                  const Text('Formato: Unidad', style: TextStyle(color: Colors.blue, fontSize: 12)),
-                ],
+              const SizedBox(height: 16),
+              const Text('Digita la Cantidad Física:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: cantidadController,
+                keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: true),
+                autofocus: true, // Abre el teclado automáticamente
+                decoration: InputDecoration(
+                  hintText: 'Ingresa cantidad (ej: 1.5)',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text('Digita la Cantidad Física:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: cantidadController,
-              keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: true),
-              autofocus: true, // Abre el teclado automáticamente
-              decoration: InputDecoration(
-                hintText: 'Ingresa cantidad (ej: 1.5)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -262,6 +268,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   // Modal 3: Sincronizar Metro 
   void _mostrarModalSincronizar() {
+    setState(() { _isProcessingScan = true; });
     _scannerController.stop(); // Pausa por precaución
     
     showDialog(
@@ -425,20 +432,22 @@ class _ScannerScreenState extends State<ScannerScreen> {
           
           // Botón inferior para guardar/sincronizar
           if (_productosEscaneados.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: Colors.white,
-              child: SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: _mostrarModalSincronizar,
-                  icon: const Icon(Icons.cloud_upload),
-                  label: const Text('Guardar Toma de Inventario', style: TextStyle(fontSize: 16)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            SafeArea(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.white,
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: _mostrarModalSincronizar,
+                    icon: const Icon(Icons.cloud_upload),
+                    label: const Text('Guardar Toma de Inventario', style: TextStyle(fontSize: 16)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
                   ),
                 ),
               ),
