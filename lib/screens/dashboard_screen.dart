@@ -329,142 +329,144 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.teal.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                        backgroundColor: Colors.teal,
-                        child: const Icon(Icons.store, color: Colors.white)),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Sucursal: ${widget.sucursal}',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: Colors.teal)),
-                          Text(
-                            'Operario(a): ${widget.apiService.nombreUsuario} | N° Local: ${widget.apiService.inventarioSeleccionado!['codLocal']}',
-                            style: TextStyle(color: Colors.teal.shade700),
-                          )
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _isDownloading ? null : _descargarCatalogo,
-                  icon: _isDownloading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.cloud_download_outlined),
-                  label: Text(_isDownloading
-                      ? 'Descargando...'
-                      : 'Sincronizar Catálogo Maestro'),
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.blue,
-                      padding: const EdgeInsets.symmetric(vertical: 12)),
-                ),
-              ),
-              const SizedBox(height: 32),
-              const Text('Digita el sector o metro de conteo libre:',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _metroController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.numbers, color: Colors.blue),
-                  hintText: 'Número de Metro / Pasillo',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
-              const SizedBox(height: 40),
-              
-              // BOTÓN ACTUALIZADO PARA LA VALIDACIÓN
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton.icon(
-                  // Apunta a la nueva función
-                  onPressed: _isValidating ? null : _iniciarProcesoValidacion,
-                  // Cambia el ícono por un loader si está validando
-                  icon: _isValidating 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.play_arrow),
-                  label: Text(_isValidating ? 'Validando...' : 'Comenzar Inventario General', style: const TextStyle(fontSize: 16)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.shade50,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-              ),
-
-              const SizedBox(height: 32),
-              
-              // SECCIÓN OFFLINE FIRST
-              if (_metrosPendientes.isNotEmpty) ...[
-                const Divider(),
-                const SizedBox(height: 16),
-                const Text('Conteos Pendientes por Sincronizar:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                const SizedBox(height: 12),
-                
-                // Dibuja los recuadros de los metros
-                ..._metrosPendientes.map((metro) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Conteo Metro $metro', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const Icon(Icons.offline_pin, color: Colors.orange, size: 20),
+                      CircleAvatar(
+                          backgroundColor: Colors.teal,
+                          child: const Icon(Icons.store, color: Colors.white)),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Sucursal: ${widget.sucursal}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Colors.teal)),
+                            Text(
+                              'Operario(a): ${widget.apiService.nombreUsuario} | N° Local: ${widget.apiService.inventarioSeleccionado!['codLocal']}',
+                              style: TextStyle(color: Colors.teal.shade700),
+                            )
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                )),
-                
+                ),
                 const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isDownloading ? null : _descargarCatalogo,
+                    icon: _isDownloading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.cloud_download_outlined),
+                    label: Text(_isDownloading
+                        ? 'Descargando...'
+                        : 'Sincronizar Catálogo Maestro'),
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.blue,
+                        padding: const EdgeInsets.symmetric(vertical: 12)),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                const Text('Digita el sector o metro de conteo libre:',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _metroController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.numbers, color: Colors.blue),
+                    hintText: 'Número de Metro / Pasillo',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+                const SizedBox(height: 40),
+                
+                // BOTÓN ACTUALIZADO PARA LA VALIDACIÓN
                 SizedBox(
                   width: double.infinity,
                   height: 55,
                   child: ElevatedButton.icon(
-                    onPressed: _isSyncingMaster ? null : _sincronizarTodo,
-                    icon: _isSyncingMaster 
+                    // Apunta a la nueva función
+                    onPressed: _isValidating ? null : _iniciarProcesoValidacion,
+                    // Cambia el ícono por un loader si está validando
+                    icon: _isValidating 
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.cloud_upload_outlined),
-                    label: Text(_isSyncingMaster ? 'Enviando...' : 'Registrar Lista de Conteos', style: const TextStyle(fontSize: 16)),
+                        : const Icon(Icons.play_arrow),
+                    label: Text(_isValidating ? 'Validando...' : 'Comenzar Inventario General', style: const TextStyle(fontSize: 16)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ),
-              ]
-            ],
+
+                const SizedBox(height: 32),
+                
+                // SECCIÓN OFFLINE FIRST
+                if (_metrosPendientes.isNotEmpty) ...[
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  const Text('Conteos Pendientes por Sincronizar:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                  const SizedBox(height: 12),
+                  
+                  // Dibuja los recuadros de los metros
+                  ..._metrosPendientes.map((metro) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Conteo Metro $metro', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const Icon(Icons.offline_pin, color: Colors.orange, size: 20),
+                      ],
+                    ),
+                  )),
+                  
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSyncingMaster ? null : _sincronizarTodo,
+                      icon: _isSyncingMaster 
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Icon(Icons.cloud_upload_outlined),
+                      label: Text(_isSyncingMaster ? 'Enviando...' : 'Registrar Lista de Conteos', style: const TextStyle(fontSize: 16)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ),
+                ]
+              ],
+            ),
           ),
         ),
       ),
