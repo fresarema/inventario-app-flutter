@@ -110,7 +110,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'cantidad': c['cantidad']
       }).toList();
 
-      bool exito = await widget.apiService.sincronizarMetro(metro, payload);
+      String? nota = await DatabaseService().obtenerObservacionMetro(metro);
+
+      bool exito = await widget.apiService.sincronizarMetro(metro, payload, observacion: nota);
       
       if (exito) {
         await DatabaseService().limpiarMetroSincronizado(metro);

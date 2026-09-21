@@ -44,7 +44,7 @@ class DatabaseService {
       )
     ''');
 
-    // Agregamos la columna 'metro' para agrupar los escaneos
+    // Agrega la columna 'metro' para agrupar los escaneos
     await db.execute('''
       CREATE TABLE conteos_pendientes(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,6 +53,15 @@ class DatabaseService {
         cantidad REAL
       )
     ''');
+
+    // Tabla para guardar las observaciones de los metros
+    await db.execute('''
+      CREATE TABLE metros_observaciones(
+        metro TEXT PRIMARY KEY,
+        observacion TEXT
+      )
+    ''');
+    
   }
   // Inserta miles de productos en un solo movimiento bloqueando la BD brevemente
   Future<void> insertarProductosMasivo(List<Producto> productos) async {
@@ -94,7 +103,7 @@ class DatabaseService {
     return null;
   }
 
-  // Guarda todos los escaneos de un pasillo en la memoria local
+  // Guarda todos los escaneos de un metro en la memoria local
   Future<void> guardarMetroOffline(String metro, List<Map<String, dynamic>> escaneos) async {
     final db = await database;
     Batch batch = db.batch();
@@ -110,16 +119,41 @@ class DatabaseService {
     await batch.commit(noResult: true);
   }
 
+  // Guardado de observaciones del metro en la memoria local
+  Future<void> guardarObservacionMetro(String metro, String observacion) async {
+    final db = await database;
+    await db.insert('metros_observaciones', {
+      'metro': metro,
+      'observacion': observacion
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   // Recupera todos los datos guardados sin conexión
   Future<List<Map<String, dynamic>>> obtenerConteosPendientes() async {
     final db = await database;
     return await db.query('conteos_pendientes');
   }
 
+  // Recupera la observación de un metro específico antes de enviarla al servidor
+  Future<String?> obtenerObservacionMetro(String metro) async {
+    final db = await database;
+    final result = await db.query(
+      'metros_observaciones',
+      where: 'metro = ?',
+      whereArgs: [metro],
+    );
+    
+    if (result.isNotEmpty) {
+      return result.first['observacion'] as String;
+    }
+    return null;
+  }
+
   // Borra únicamente el metro que ya se envió con éxito al servidor
   Future<void> limpiarMetroSincronizado(String metro) async {
     final db = await database;
     await db.delete('conteos_pendientes', where: 'metro = ?', whereArgs: [metro]);
+    await db.delete('metros_observaciones', where: 'metro = ?', whereArgs: [metro]);
   }
 
 

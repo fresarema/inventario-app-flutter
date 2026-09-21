@@ -275,8 +275,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   // Modal 3: Sincronizar Metro 
   void _mostrarModalSincronizar() {
+    final TextEditingController observacionController = TextEditingController(); // <-- Controlador para la nota
+
     setState(() { _isProcessingScan = true; });
-    _scannerController.stop(); // Pausa por precaución
+    _scannerController.stop(); 
     
     showDialog(
       context: context,
@@ -289,8 +291,26 @@ class _ScannerScreenState extends State<ScannerScreen> {
             Text('¿Sincronizar Metro?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           ],
         ),
-        content: Text(
-          'Se consolidarán los ${_productosEscaneados.length} productos registrados en el Metro N° ${widget.numeroMetro}.',
+        // Envuelve el contenido en un SingleChildScrollView con Column para acomodar el TextField
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Se consolidarán los ${_productosEscaneados.length} productos registrados en el Metro N° ${widget.numeroMetro}.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: observacionController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Observación (Opcional)',
+                  hintText: 'Ej: Productos mermados, etiquetas rotas...',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -308,8 +328,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 const SnackBar(content: Text('Guardando en memoria local...')),
               );
 
-              // 1. Llama a la nueva función local de SQLite
+              // Captura el texto escrito
+              String observacion = observacionController.text.trim();
+
+              
               await _dbService.guardarMetroOffline(widget.numeroMetro, _productosEscaneados);
+
+              if (observacion.isNotEmpty) {
+                 await _dbService.guardarObservacionMetro(widget.numeroMetro, observacion);
+              }
 
               if (mounted) {
                 setState(() {
@@ -320,7 +347,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 );
                 await Future.delayed(const Duration(milliseconds: 1000));
                 
-                // 2. Cierra la pantalla y vuelve al Dashboard
                 if (mounted) Navigator.pop(context); 
               }
             },

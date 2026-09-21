@@ -77,17 +77,17 @@ class ApiService {
     }
   }
 
-  // 3. Sincronizar (Solo conteo físico)
-  Future<bool> sincronizarMetro(String metro, List<Map<String, dynamic>> registros) async {
+  // 3. Sincronizar (Solo conteo físico y observación)
+  Future<bool> sincronizarMetro(String metro, List<Map<String, dynamic>> registros, {String? observacion}) async {
     if (token == null) return false;
 
     try {
-      // Mapeo estricto: la app no procesa el stock teórico, solo envía lo contado
+      // Mapeo estricto: la app no procesa el stock teórico, solo envía lo contado[cite: 14]
       List<Map<String, dynamic>> conteosParaApi = registros.map((item) {
         final prod = item['producto'] as Producto;
         return {
           'codigo': prod.codigo,
-          'cantidad': item['cantidad'], // Solo cantidad física
+          'cantidad': item['cantidad'], // Solo cantidad física[cite: 14]
         };
       }).toList();
 
@@ -99,8 +99,9 @@ class ApiService {
           'Content-Type': 'application/json', 
         },
         body: jsonEncode({
-          'inventario_id': inventarioSeleccionado!['id'], // Asegura que se envía al proceso correcto
+          'inventario_id': inventarioSeleccionado!['id'], // Asegura que se envía al proceso correcto[cite: 14]
           'metro': metro, 
+          'observacion': observacion ?? '', //  Llave capturada y enviada a Laravel
           'conteos': conteosParaApi,
         }),
       );
