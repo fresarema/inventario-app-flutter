@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/producto.dart';
 
 class ApiService {
-  final String baseUrl = 'http://192.168.1.119:8000/api';
+  final String baseUrl = 'http://192.168.2.210:8080/api';
   String? token;
   
   // Variables dinámicas asignadas por el servidor

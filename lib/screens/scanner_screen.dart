@@ -23,7 +23,14 @@ class _ScannerScreenState extends State<ScannerScreen> {
   final DatabaseService _dbService = DatabaseService();
   
   // Controlador de la cámara
-  final MobileScannerController _scannerController = MobileScannerController();
+  final MobileScannerController _scannerController = MobileScannerController(
+  formats: const [
+    BarcodeFormat.ean13,
+    BarcodeFormat.ean8,
+    BarcodeFormat.code128,
+    BarcodeFormat.upcA,
+  ],
+);
   
   // Bandera para evitar que escanee 100 veces el mismo código en un segundo
   bool _isProcessingScan = false;
