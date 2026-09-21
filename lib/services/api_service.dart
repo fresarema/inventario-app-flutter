@@ -114,4 +114,25 @@ class ApiService {
       return false;
     }
   }
+
+  // 4. Descargar Metros Habilitados
+  Future<List<dynamic>> descargarMetros(String codLocal) async {
+    if (token == null) throw Exception('No hay token de autorización');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/metros-local'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      },
+      body: {'codLocal': codLocal},
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['data'];
+    } else {
+      throw Exception('Error al descargar los metros');
+    }
+  }
 }

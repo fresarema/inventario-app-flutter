@@ -130,40 +130,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _descargarCatalogo() async {
-    setState(() {
-      _isDownloading = true;
-    });
+    setState(() { _isDownloading = true; });
 
     try {
+      // 1. Descarga y guarda productos
       final productos = await widget.apiService.descargarCatalogo();
       await DatabaseService().insertarProductosMasivo(productos);
 
-      setState(() {
-        _isDownloading = false;
-      });
+      // 2. Descarga y guarda metros de la sucursal actual
+      final codLocal = widget.apiService.inventarioSeleccionado!['codLocal'];
+      final metros = await widget.apiService.descargarMetros(codLocal);
+      await DatabaseService().insertarMetrosMasivo(metros);
+
+      setState(() { _isDownloading = false; });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('¡Éxito! ${productos.length} productos guardados.'),
-            backgroundColor: Colors.green,
-          ),
+          SnackBar(content: Text('¡Éxito! Catálogo y ${metros.length} metros actualizados.'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
-      setState(() {
-        _isDownloading = false;
-      });
+      setState(() { _isDownloading = false; });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Error al descargar el catálogo.'),
-              backgroundColor: Colors.red),
+          const SnackBar(content: Text('Error de conexión al descargar datos.'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  // Intercepta el flujo para preguntar a Laravel antes del Modal
+
+  // Validación de metro local y offline
   void _iniciarProcesoValidacion() async {
     final numeroMetro = _metroController.text.trim();
     
@@ -174,59 +170,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
-    setState(() {
-      _isValidating = true;
-    });
+    // Consulta ultrarrápida a SQLite
+    bool esValido = await DatabaseService().validarMetroLocal(numeroMetro);
 
-    try {
-
-      final url = Uri.parse('${widget.apiService.baseUrl}/validar-metro'); 
-
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer ${widget.apiService.token}',
-        },
-        body: jsonEncode({
-          'inventario_id': widget.apiService.inventarioSeleccionado!['id'], 
-          'numero_metro': numeroMetro,
-        }),
-      );
-      print('STATUS VALIDACIÓN: ${response.statusCode}');
-      print('RESPUESTA LARAVEL: ${response.body}');
-
-      final responseData = jsonDecode(response.body);
-
-      setState(() {
-        _isValidating = false;
-      });
-
-      if (response.statusCode == 200) {
-        // Status 200: El metro es válido y está abierto. Muestra el modal original.
-        _confirmarInicioInventario();
-      } else {
-        // Status 403, 404, etc: El metro no existe o está cerrado. Muestra el error de Laravel.
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(responseData['message'] ?? 'Error al validar el metro.'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      setState(() {
-        _isValidating = false;
-      });
+    if (esValido) {
+      _confirmarInicioInventario(); // Salta al modal al instante
+    } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error de conexión con el servidor.'),
+          SnackBar(
+            content: Text('El Metro N° $numeroMetro no existe o está cerrado.'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }

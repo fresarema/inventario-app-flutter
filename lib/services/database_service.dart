@@ -61,6 +61,13 @@ class DatabaseService {
         observacion TEXT
       )
     ''');
+
+    // TABLA PARA LOS METROS PERMITIDOS
+    await db.execute('''
+      CREATE TABLE metros_validos(
+        numero TEXT PRIMARY KEY
+      )
+    ''');
     
   }
   // Inserta miles de productos en un solo movimiento bloqueando la BD brevemente
@@ -154,6 +161,31 @@ class DatabaseService {
     final db = await database;
     await db.delete('conteos_pendientes', where: 'metro = ?', whereArgs: [metro]);
     await db.delete('metros_observaciones', where: 'metro = ?', whereArgs: [metro]);
+  }
+
+  // Guarda los metros descargados del servidor
+  Future<void> insertarMetrosMasivo(List<dynamic> metros) async {
+    final db = await database;
+    await db.delete('metros_validos'); // Limpia la lista anterior
+    
+    Batch batch = db.batch();
+    for (var m in metros) {
+      batch.insert('metros_validos', {
+        'numero': m['numeroMetro'].toString()
+      });
+    }
+    await batch.commit(noResult: true);
+  }
+
+  // Verifica instantáneamente si el metro ingresado existe en la memoria
+  Future<bool> validarMetroLocal(String numero) async {
+    final db = await database;
+    final result = await db.query(
+      'metros_validos',
+      where: 'numero = ?',
+      whereArgs: [numero],
+    );
+    return result.isNotEmpty;
   }
 
 
