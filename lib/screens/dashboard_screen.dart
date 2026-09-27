@@ -111,6 +111,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }).toList();
 
       String? nota = await DatabaseService().obtenerObservacionMetro(metro);
+      print('--- FLUTTER ENVIANDO ---');
+      print('Metro: $metro | Observación: $nota');
 
       bool exito = await widget.apiService.sincronizarMetro(metro, payload, observacion: nota);
       
@@ -190,6 +192,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // MODAL PARA CONFIRMAR INICIO INVENTARIO
   void _confirmarInicioInventario() {
+    final TextEditingController _observacionController = TextEditingController(); // Controlador para la nota
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -197,20 +201,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             Icon(Icons.warning_amber_rounded, color: Colors.blue, size: 28),
             SizedBox(width: 8),
-            Text('¿Iniciar Inventario?',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+            Text('¿Iniciar Inventario?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
           ],
         ),
-        content: Text(
-          '¿Está seguro de comenzar el conteo libre en el Metro N° ${_metroController.text}?',
-          style: const TextStyle(fontSize: 16),
+        content: Column(
+          mainAxisSize: MainAxisSize.min, // Evita que ocupe toda la pantalla
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('¿Comenzar conteo en el Metro N° ${_metroController.text}?', style: const TextStyle(fontSize: 16)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _observacionController,
+              maxLines: 2,
+              decoration: InputDecoration(
+                labelText: 'Observación (Superficie, Subterráneo...)',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar',
-                style: TextStyle(color: Colors.grey, fontSize: 16)),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey, fontSize: 16)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -221,6 +235,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 MaterialPageRoute(
                   builder: (context) => ScannerScreen(
                     numeroMetro: _metroController.text,
+                    observacionMetro: _observacionController.text.trim(), 
                     apiService: widget.apiService,
                   ),
                 ),
@@ -235,8 +250,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             child: const Text('Comenzar', style: TextStyle(fontSize: 16)),
           ),
@@ -247,9 +261,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
+      return Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
           backgroundColor: Colors.white,
@@ -274,15 +286,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
             )
           ],
-          bottom: const TabBar(
-            labelColor: Colors.blue,
-            unselectedLabelColor: Colors.grey,
-            indicatorColor: Colors.blue,
-            tabs: [
-              Tab(icon: Icon(Icons.grid_view), text: 'Inventario General'),
-              Tab(icon: Icon(Icons.sync), text: 'Inventario Cíclico'),
-            ],
-          ),
         ),
         body: SafeArea(
           child: SingleChildScrollView(
@@ -424,7 +427,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }

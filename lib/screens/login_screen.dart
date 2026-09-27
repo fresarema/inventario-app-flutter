@@ -35,7 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Acceso concedido. Inventario activo en: ${_apiService.sucursalAsignada}'),
+              content: Text('Acceso concedido. Inventario activo en: ${_apiService.inventarioSeleccionado!['nombre_local']}'),
               backgroundColor: Colors.teal,
               duration: const Duration(seconds: 3),
             ),

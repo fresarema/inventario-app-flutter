@@ -6,11 +6,13 @@ import '../services/api_service.dart';
 
 class ScannerScreen extends StatefulWidget {
   final String numeroMetro;
+  final String observacionMetro;
   final ApiService apiService;
 
   const ScannerScreen({
     super.key,
     required this.numeroMetro,
+    required this.observacionMetro,
     required this.apiService,
   });
 
@@ -34,6 +36,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
   
   // Bandera para evitar que escanee 100 veces el mismo código en un segundo
   bool _isProcessingScan = false;
+
+  bool _camaraActiva = false;
 
   @override
   void dispose() {
@@ -133,7 +137,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     ).then((_) {
       // Por si el usuario descarta el modal tocando fuera de él
       setState(() { _isProcessingScan = false; });
-      _scannerController.start();
+      _camaraActiva = false;
     });
   }
 
@@ -252,7 +256,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
                   Navigator.pop(context);
                   _isProcessingScan = false;
-                  _scannerController.start(); 
+                  _camaraActiva = false;
                 } catch (e) {
                   // Manejo silencioso si el usuario logra meter un texto inválido
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -275,8 +279,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   // Modal 3: Sincronizar Metro 
   void _mostrarModalSincronizar() {
-    final TextEditingController observacionController = TextEditingController(); // <-- Controlador para la nota
-
     setState(() { _isProcessingScan = true; });
     _scannerController.stop(); 
     
@@ -291,32 +293,17 @@ class _ScannerScreenState extends State<ScannerScreen> {
             Text('¿Sincronizar Metro?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           ],
         ),
-        // Envuelve el contenido en un SingleChildScrollView con Column para acomodar el TextField
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Se consolidarán los ${_productosEscaneados.length} productos registrados en el Metro N° ${widget.numeroMetro}.',
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: observacionController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: 'Observación (Opcional)',
-                  hintText: 'Ej: Productos mermados, etiquetas rotas...',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ],
-          ),
+        content: Text(
+          'Se consolidarán los ${_productosEscaneados.length} productos registrados en el Metro N° ${widget.numeroMetro}.',
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              _scannerController.start();
+              setState(() {
+                _isProcessingScan = false;
+                _camaraActiva = false; // Mantiene el cuadro negro en espera
+              });
             },
             child: const Text('Revisar Más', style: TextStyle(color: Colors.grey)),
           ),
@@ -328,14 +315,12 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 const SnackBar(content: Text('Guardando en memoria local...')),
               );
 
-              // Captura el texto escrito
-              String observacion = observacionController.text.trim();
-
-              
+              // 1. Guarda los productos
               await _dbService.guardarMetroOffline(widget.numeroMetro, _productosEscaneados);
 
-              if (observacion.isNotEmpty) {
-                 await _dbService.guardarObservacionMetro(widget.numeroMetro, observacion);
+              // 2. Guarda la observación que recibe desde el Dashboard
+              if (widget.observacionMetro.isNotEmpty) {
+                 await _dbService.guardarObservacionMetro(widget.numeroMetro, widget.observacionMetro);
               }
 
               if (mounted) {
@@ -347,7 +332,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 );
                 await Future.delayed(const Duration(milliseconds: 1000));
                 
-                if (mounted) Navigator.pop(context); 
+                if (mounted) Navigator.pop(context); // Vuelve al Dashboard
               }
             },
             style: ElevatedButton.styleFrom(
@@ -384,28 +369,42 @@ class _ScannerScreenState extends State<ScannerScreen> {
             width: double.infinity,
             child: Stack(
               children: [
-                MobileScanner(
-                  controller: _scannerController,
-                  onDetect: (capture) {
-                    // Si ya esta procesando un código, ignora las nuevas lecturas
-                    if (_isProcessingScan) return;
-
-                    final List<Barcode> barcodes = capture.barcodes;
-                    for (final barcode in barcodes) {
-                      if (barcode.rawValue != null) {
-                        final String code = barcode.rawValue!;
-                        
-                        setState(() {
-                          _isProcessingScan = true;
-                        });
-                        
-                        _scannerController.stop(); // Detiene la cámara
-                        _buscarProducto(code); // Lanza la búsqueda
-                        break; // Procesa solo un código a la vez
+                _camaraActiva 
+                ? MobileScanner(
+                    controller: _scannerController,
+                    onDetect: (capture) {
+                      if (_isProcessingScan) return;
+                      final List<Barcode> barcodes = capture.barcodes;
+                      for (final barcode in barcodes) {
+                        if (barcode.rawValue != null) {
+                          setState(() { _isProcessingScan = true; _camaraActiva = false; });
+                          _scannerController.stop(); 
+                          _buscarProducto(barcode.rawValue!); 
+                          break; 
+                        }
                       }
-                    }
-                  },
-                ),
+                    },
+                  )
+                : Container(
+                    color: Colors.black87,
+                    width: double.infinity,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.videocam_off, color: Colors.white54, size: 40),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            setState(() { _camaraActiva = true; });
+                            _scannerController.start();
+                          },
+                          icon: const Icon(Icons.power_settings_new),
+                          label: const Text('Activar Cámara'),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                        )
+                      ],
+                    ),
+                  ),
                 
                 // Botón de ingreso manual superpuesto sobre la cámara
                 Positioned(
