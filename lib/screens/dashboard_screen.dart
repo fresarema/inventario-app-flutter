@@ -29,21 +29,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Controla el estado del botón mientras consulta la API
   bool _isValidating = false; 
 
-  List<String> _metrosPendientes = [];
+  List<String> _sectoresDisponibles = ['Superficie'];
+  String _nivelSeleccionado = 'Superficie';
+  List<Map<String, String>> _metrosPendientes = [];
   bool _isSyncingMaster = false;
 
   @override
   void initState() {
     super.initState();
     _cargarMetrosPendientes();
+    _cargarSectores();
   }
 
   void _cargarMetrosPendientes() async {
     final conteos = await DatabaseService().obtenerConteosPendientes();
-    // Extrae los nombres únicos de los metros pendientes
-    final metros = conteos.map((c) => c['metro'].toString()).toSet().toList();
+    // Extrae combinaciones únicas de metro y nivel
+    final Set<String> combinaciones = conteos.map((c) => "${c['metro']}|${c['nivel']}").toSet();
+
+    List<Map<String, String>> listaPendientes = combinaciones.map((comb) {
+      final partes = comb.split('|');
+      return {'metro': partes[0], 'nivel': partes[1]};
+    }).toList();
+
     setState(() {
-      _metrosPendientes = metros;
+      _metrosPendientes = listaPendientes;
     });
   }
 
@@ -102,22 +111,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // 3. FLUJO ORIGINAL: Si todo está bien, envía los datos
     final todosLosConteos = await DatabaseService().obtenerConteosPendientes();
     
-    for(String metro in _metrosPendientes) {
-      final dataDelMetro = todosLosConteos.where((c) => c['metro'] == metro).toList();
+    for(var pendiente in _metrosPendientes) {
+      String metro = pendiente['metro']!;
+      String nivel = pendiente['nivel']!;
+      
+      final dataDelMetro = todosLosConteos.where((c) => c['metro'] == metro && c['nivel'] == nivel).toList();
       
       List<Map<String, dynamic>> payload = dataDelMetro.map((c) => {
         'producto': Producto(codigo: c['codigo'].toString(), descripcion: ''),
         'cantidad': c['cantidad']
       }).toList();
 
-      String? nota = await DatabaseService().obtenerObservacionMetro(metro);
-      print('--- FLUTTER ENVIANDO ---');
-      print('Metro: $metro | Observación: $nota');
+      String? nota = await DatabaseService().obtenerObservacionMetro(metro, nivel);
 
-      bool exito = await widget.apiService.sincronizarMetro(metro, payload, observacion: nota);
+      bool exito = await widget.apiService.sincronizarMetro(metro, nivel, payload, observacion: nota);
       
       if (exito) {
-        await DatabaseService().limpiarMetroSincronizado(metro);
+        await DatabaseService().limpiarMetroSincronizado(metro, nivel);
       }
     }
     
@@ -129,6 +139,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SnackBar(content: Text('Sincronización masiva completada.'), backgroundColor: Colors.blue),
       );
     }
+  }
+
+  void _cargarSectores() async {
+    final sectores = await DatabaseService().obtenerSectoresUnicos();
+    setState(() {
+      _sectoresDisponibles = sectores;
+      // Si el sector actual no está en la nueva lista, selecciona el primero
+      if (!_sectoresDisponibles.contains(_nivelSeleccionado)) {
+        _nivelSeleccionado = _sectoresDisponibles.first;
+      }
+    });
   }
 
   void _descargarCatalogo() async {
@@ -143,6 +164,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final codLocal = widget.apiService.inventarioSeleccionado!['codLocal'];
       final metros = await widget.apiService.descargarMetros(codLocal);
       await DatabaseService().insertarMetrosMasivo(metros);
+
+      _cargarSectores();
 
       setState(() { _isDownloading = false; });
       if (mounted) {
@@ -164,27 +187,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Validación de metro local y offline
   void _iniciarProcesoValidacion() async {
     final numeroMetro = _metroController.text.trim();
-    
-    if (numeroMetro.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, ingresa un número de metro.'), backgroundColor: Colors.red),
-      );
-      return;
-    }
+    if (numeroMetro.isEmpty) return;
 
-    // Consulta ultrarrápida a SQLite
-    bool esValido = await DatabaseService().validarMetroLocal(numeroMetro);
+    
+    bool esValido = await DatabaseService().validarMetroLocal(numeroMetro, _nivelSeleccionado);
 
     if (esValido) {
-      _confirmarInicioInventario(); // Salta al modal al instante
+      _confirmarInicioInventario(); 
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('El Metro N° $numeroMetro no existe o está cerrado.'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
+          SnackBar(content: Text('El Metro N° $numeroMetro en $_nivelSeleccionado no existe o está cerrado.'), backgroundColor: Colors.red),
         );
       }
     }
@@ -235,6 +248,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 MaterialPageRoute(
                   builder: (context) => ScannerScreen(
                     numeroMetro: _metroController.text,
+                    nivel: _nivelSeleccionado,
                     observacionMetro: _observacionController.text.trim(), 
                     apiService: widget.apiService,
                   ),
@@ -359,6 +373,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     contentPadding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                 ),
+                const Text('Selecciona el Sector/Zona:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: _nivelSeleccionado,
+                      // Mapea la lista dinámica extraída de SQLite
+                      items: _sectoresDisponibles.map((String valor) {
+                        return DropdownMenuItem<String>(
+                          value: valor,
+                          child: Text(valor),
+                        );
+                      }).toList(),
+                      onChanged: (String? nuevoValor) {
+                        setState(() { _nivelSeleccionado = nuevoValor!; });
+                      },
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 40),
                 
                 // BOTÓN ACTUALIZADO PARA LA VALIDACIÓN
@@ -390,16 +429,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 16),
                   const Text('Conteos Pendientes por Sincronizar:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
                   const SizedBox(height: 12),
-                  
+
                   // Dibuja los recuadros de los metros
-                  ..._metrosPendientes.map((metro) => Container(
+                  ..._metrosPendientes.map((pendiente) => Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Conteo Metro $metro', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text('Conteo Metro ${pendiente['metro']} (${pendiente['nivel']})', style: const TextStyle(fontWeight: FontWeight.bold)),
                         const Icon(Icons.offline_pin, color: Colors.orange, size: 20),
                       ],
                     ),

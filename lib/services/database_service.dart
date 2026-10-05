@@ -38,37 +38,35 @@ class DatabaseService {
   // Creación de las tablas la primera vez que se instala la app
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE productos(
-        codigo TEXT PRIMARY KEY,
-        descripcion TEXT
-      )
+      CREATE TABLE productos(codigo TEXT PRIMARY KEY, descripcion TEXT)
     ''');
 
-    // Agrega la columna 'metro' para agrupar los escaneos
     await db.execute('''
       CREATE TABLE conteos_pendientes(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         metro TEXT,
+        nivel TEXT,
         codigo TEXT,
         cantidad REAL
       )
     ''');
 
-    // Tabla para guardar las observaciones de los metros
     await db.execute('''
       CREATE TABLE metros_observaciones(
-        metro TEXT PRIMARY KEY,
-        observacion TEXT
+        metro TEXT,
+        nivel TEXT,
+        observacion TEXT,
+        PRIMARY KEY (metro, nivel)
       )
     ''');
 
-    // TABLA PARA LOS METROS PERMITIDOS
     await db.execute('''
       CREATE TABLE metros_validos(
-        numero TEXT PRIMARY KEY
+        numero TEXT,
+        nivel TEXT,
+        PRIMARY KEY (numero, nivel)
       )
     ''');
-    
   }
   // Inserta miles de productos en un solo movimiento bloqueando la BD brevemente
   Future<void> insertarProductosMasivo(List<Producto> productos) async {
@@ -111,14 +109,14 @@ class DatabaseService {
   }
 
   // Guarda todos los escaneos de un metro en la memoria local
-  Future<void> guardarMetroOffline(String metro, List<Map<String, dynamic>> escaneos) async {
+  Future<void> guardarMetroOffline(String metro, String nivel, List<Map<String, dynamic>> escaneos) async {
     final db = await database;
     Batch batch = db.batch();
-    
     for (var item in escaneos) {
       final prod = item['producto'] as Producto;
       batch.insert('conteos_pendientes', {
         'metro': metro,
+        'nivel': nivel, 
         'codigo': prod.codigo,
         'cantidad': item['cantidad']
       });
@@ -127,10 +125,11 @@ class DatabaseService {
   }
 
   // Guardado de observaciones del metro en la memoria local
-  Future<void> guardarObservacionMetro(String metro, String observacion) async {
+  Future<void> guardarObservacionMetro(String metro, String nivel, String observacion) async {
     final db = await database;
     await db.insert('metros_observaciones', {
       'metro': metro,
+      'nivel': nivel, 
       'observacion': observacion
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
@@ -142,12 +141,12 @@ class DatabaseService {
   }
 
   // Recupera la observación de un metro específico antes de enviarla al servidor
-  Future<String?> obtenerObservacionMetro(String metro) async {
+  Future<String?> obtenerObservacionMetro(String metro, String nivel) async {
     final db = await database;
     final result = await db.query(
       'metros_observaciones',
-      where: 'metro = ?',
-      whereArgs: [metro],
+      where: 'metro = ? AND nivel = ?',
+      whereArgs: [metro, nivel],
     );
     
     if (result.isNotEmpty) {
@@ -157,35 +156,49 @@ class DatabaseService {
   }
 
   // Borra únicamente el metro que ya se envió con éxito al servidor
-  Future<void> limpiarMetroSincronizado(String metro) async {
+  Future<void> limpiarMetroSincronizado(String metro, String nivel) async {
     final db = await database;
-    await db.delete('conteos_pendientes', where: 'metro = ?', whereArgs: [metro]);
-    await db.delete('metros_observaciones', where: 'metro = ?', whereArgs: [metro]);
+    await db.delete('conteos_pendientes', where: 'metro = ? AND nivel = ?', whereArgs: [metro, nivel]);
+    await db.delete('metros_observaciones', where: 'metro = ? AND nivel = ?', whereArgs: [metro, nivel]);
   }
 
   // Guarda los metros descargados del servidor
   Future<void> insertarMetrosMasivo(List<dynamic> metros) async {
     final db = await database;
-    await db.delete('metros_validos'); // Limpia la lista anterior
+    await db.delete('metros_validos'); 
     
     Batch batch = db.batch();
     for (var m in metros) {
       batch.insert('metros_validos', {
-        'numero': m['numeroMetro'].toString()
+        'numero': m['numeroMetro'].toString(),
+        'nivel': m['nivel'].toString() // <-- Guarda el nivel que envía Laravel
       });
     }
     await batch.commit(noResult: true);
   }
 
   // Verifica instantáneamente si el metro ingresado existe en la memoria
-  Future<bool> validarMetroLocal(String numero) async {
+  Future<bool> validarMetroLocal(String numero, String nivel) async {
     final db = await database;
     final result = await db.query(
       'metros_validos',
-      where: 'numero = ?',
-      whereArgs: [numero],
+      where: 'numero = ? AND nivel = ?',
+      whereArgs: [numero, nivel],
     );
     return result.isNotEmpty;
+  }
+
+  // Obtiene una lista dinámica de los sectores (niveles) que existen en la sucursal actual
+  Future<List<String>> obtenerSectoresUnicos() async {
+    final db = await database;
+    final result = await db.query(
+      'metros_validos', 
+      distinct: true, 
+      columns: ['nivel']
+    );
+    
+    if (result.isEmpty) return ['Superficie']; // Valor de rescate por defecto
+    return result.map((e) => e['nivel'].toString()).toList();
   }
 
 

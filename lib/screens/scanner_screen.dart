@@ -6,12 +6,14 @@ import '../services/api_service.dart';
 
 class ScannerScreen extends StatefulWidget {
   final String numeroMetro;
+  final String nivel;
   final String observacionMetro;
   final ApiService apiService;
 
   const ScannerScreen({
     super.key,
     required this.numeroMetro,
+    required this.nivel,
     required this.observacionMetro,
     required this.apiService,
   });
@@ -316,11 +318,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
               );
 
               // 1. Guarda los productos
-              await _dbService.guardarMetroOffline(widget.numeroMetro, _productosEscaneados);
+              await _dbService.guardarMetroOffline(widget.numeroMetro, widget.nivel, _productosEscaneados);
 
               // 2. Guarda la observación que recibe desde el Dashboard
               if (widget.observacionMetro.isNotEmpty) {
-                 await _dbService.guardarObservacionMetro(widget.numeroMetro, widget.observacionMetro);
+                 await _dbService.guardarObservacionMetro(widget.numeroMetro, widget.nivel, widget.observacionMetro);
               }
 
               if (mounted) {

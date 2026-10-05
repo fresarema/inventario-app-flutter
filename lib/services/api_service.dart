@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/producto.dart';
 
 class ApiService {
-  final String baseUrl = 'http://192.168.2.210:8080/api';
+  final String baseUrl = 'http://192.168.2.181:8080/api';
   String? token;
   
   // Variables dinámicas asignadas por el servidor
@@ -78,7 +78,7 @@ class ApiService {
   }
 
   // 3. Sincronizar (Solo conteo físico y observación)
-  Future<bool> sincronizarMetro(String metro, List<Map<String, dynamic>> registros, {String? observacion}) async {
+  Future<bool> sincronizarMetro(String metro, String nivel, List<Map<String, dynamic>> registros, {String? observacion}) async {
     if (token == null) return false;
 
     try {
@@ -100,7 +100,8 @@ class ApiService {
         },
         body: jsonEncode({
           'inventario_id': inventarioSeleccionado!['id'], // Asegura que se envía al proceso correcto[cite: 14]
-          'metro': metro, 
+          'metro': metro,
+          'nivel': nivel, 
           'observacion': observacion ?? '', //  Llave capturada y enviada a Laravel
           'conteos': conteosParaApi,
         }),
